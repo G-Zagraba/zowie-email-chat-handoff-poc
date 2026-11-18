@@ -121,6 +121,7 @@
       $('lead').textContent = 'You came here from our e-mail. The chat already knows your case, so you will not have to repeat anything.';
       $('ctxSummary').textContent = payload.sum || '(no summary)';
       $('ctxMeta').innerHTML =
+        (payload.ahid ? '<span>Account holder ID</span><b>•••• ' + String(payload.ahid).slice(-4) + ' <small style="font-weight:400;color:var(--muted)">(given by e-mail, reused here)</small></b>' : '') +
         '<span>Topic</span><b>' + (payload.tp === 'card_block' ? 'Block a card' : (payload.tp || '-')) + '</b>' +
         (payload.card ? '<span>Card</span><b>ending ' + payload.card + '</b>' : '') +
         (payload.rsn ? '<span>Reason</span><b>' + payload.rsn.replace('_', ' ') + '</b>' : '') +
@@ -146,7 +147,8 @@
   s.onload = function () {
     // Custom events sent by the Zowie process with ui.sendEvent(...)
     ZowieWidget.on('handoffVerified', function (p) {
-      step(3, 'done', 'signed link verified for ' + ((p && p.firstName) || 'customer'));
+      step(3, 'done', 'signed link verified for ' + ((p && p.firstName) || 'customer') +
+        (p && p.accountHolderIdMasked ? ' · account holder ID ' + p.accountHolderIdMasked + ' reused from e-mail' : ''));
     });
     ZowieWidget.on('cardBlocked', function (p) {
       step(4, 'done', (p && p.card ? p.card : 'card') + ' · ref ' + (p && p.reference) + ' · replacement by ' + (p && p.replacementEta));
