@@ -78,12 +78,15 @@
   var INSTANCE_ID = '4651b8f2966a466cb55e23fb932b7f3a';
 
   var params = new URLSearchParams(window.location.search);
-  var token = params.get('t') || '';
+  // Token in the query (?t=, dedicated landing page) or in the fragment (#t=, existing page with the widget;
+  // a fragment is never sent to the web server, CDN or most analytics).
+  var hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  var token = params.get('t') || hashParams.get('t') || '';
   // Demo switches (kept in the URL after the token is removed):
   //   v=live         -> talk to the published AI agent version (default: STAGING, the POC is not published)
   //   r=<referral>   -> referral used to start the chat (default: email_handoff when a token is present)
   var versionType = (params.get('v') || '').toLowerCase() === 'live' ? 'PRODUCTION' : 'STAGING';
-  var referral = params.get('r') || (token ? 'email_handoff' : '');
+  var referral = params.get('r') || hashParams.get('zowie') || (token ? 'email_handoff' : '');
 
   // Remove the token from the address bar / history as soon as it is read.
   if (token) {
@@ -145,8 +148,19 @@
   s.type = 'module';
   s.src = WIDGET_SCRIPT_URL;
   s.onload = function () {
+    // The widget keeps init metadata for the whole page session and re-sends it with every NEW conversation
+    // (e.g. after "End chat"). Once the AI agent has used (or rejected) the token, drop it from the metadata,
+    // otherwise a new conversation on this page would start the handoff flow again.
+    function clearHandoffToken() {
+      if (!extraParams.handoffToken) return;
+      extraParams = { entryChannel: 'email', handoffToken: '' };
+      ZowieWidget.updateMetadata({ extraParams: extraParams });
+    }
+    ZowieWidget.on('handoffRejected', clearHandoffToken);
+
     // Custom events sent by the Zowie process with ui.sendEvent(...)
     ZowieWidget.on('handoffVerified', function (p) {
+      clearHandoffToken();
       step(3, 'done', 'signed link verified for ' + ((p && p.firstName) || 'customer') +
         (p && p.accountHolderIdMasked ? ' · account holder ID ' + p.accountHolderIdMasked + ' reused from e-mail' : ''));
     });
