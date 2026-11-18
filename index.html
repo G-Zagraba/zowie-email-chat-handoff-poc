@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Northwind Bank · Secure chat</title>
+  <style>
+    :root { --navy: #0B3D91; --ink: #14213d; --muted: #5b6475; --ok: #12805c; --warn: #b54708; --bg: #f4f6fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); background: var(--bg); }
+    header { background: var(--navy); color: #fff; padding: 18px 32px; display: flex; align-items: center; gap: 12px; }
+    header .logo { width: 34px; height: 34px; border-radius: 8px; background: #fff; color: var(--navy); font-weight: 800; display: grid; place-items: center; }
+    header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    header .lock { margin-left: auto; font-size: 13px; opacity: .85; }
+    main { max-width: 760px; margin: 40px auto; padding: 0 24px 160px; }
+    h2 { font-size: 26px; margin: 0 0 8px; }
+    p.lead { color: var(--muted); margin: 0 0 28px; line-height: 1.5; }
+    .card { background: #fff; border-radius: 14px; padding: 22px 24px; box-shadow: 0 1px 3px rgba(20,33,61,.08); margin-bottom: 18px; }
+    .card h3 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .summary { font-size: 15px; line-height: 1.55; }
+    .meta { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; font-size: 14px; margin-top: 14px; color: var(--muted); }
+    .meta b { color: var(--ink); font-weight: 600; }
+    ol.steps { list-style: none; padding: 0; margin: 0; }
+    ol.steps li { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; font-size: 15px; color: var(--muted); }
+    ol.steps li .dot { flex: 0 0 22px; height: 22px; border-radius: 50%; border: 2px solid #c9cfdb; display: grid; place-items: center; font-size: 12px; }
+    ol.steps li.done { color: var(--ink); }
+    ol.steps li.done .dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+    ol.steps li.active .dot { border-color: var(--navy); }
+    ol.steps li small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .banner { border-radius: 10px; padding: 12px 16px; font-size: 14px; margin-bottom: 18px; }
+    .banner.warn { background: #fff4e5; color: var(--warn); }
+    .banner.ok { background: #e7f6ef; color: var(--ok); }
+    footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 30px; }
+    code { background: #eef1f7; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">N</div>
+  <h1>Northwind Bank</h1>
+  <span class="lock">🔒 Secure customer chat</span>
+</header>
+
+<main>
+  <h2 id="title">Secure chat</h2>
+  <p class="lead" id="lead">Our assistant opens in the corner of this page.</p>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="card" id="ctxCard" hidden>
+    <h3>Continuing your e-mail case</h3>
+    <div class="summary" id="ctxSummary"></div>
+    <div class="meta" id="ctxMeta"></div>
+  </section>
+
+  <section class="card">
+    <h3>Progress</h3>
+    <ol class="steps">
+      <li id="s1"><span class="dot">1</span><div>Link from your e-mail opened<small id="s1d">waiting</small></div></li>
+      <li id="s2"><span class="dot">2</span><div>Chat started with your e-mail context<small id="s2d">waiting</small></div></li>
+      <li id="s3"><span class="dot">3</span><div>Identity confirmed by the signed link<small id="s3d">waiting</small></div></li>
+      <li id="s4"><span class="dot">4</span><div>Card blocked<small id="s4d">waiting</small></div></li>
+    </ol>
+  </section>
+
+  <footer>
+    Demo / proof of concept · Zowie e-mail → chat handoff · fictitious bank, mocked backend.<br>
+    <span id="dbg"></span>
+  </footer>
+</main>
+
+<script>
+(function () {
+  // ---- Configuration (provided by Zowie) ----
+  var WIDGET_SCRIPT_URL = 'https://eu1.chat.getzowie.com/web/chat-widget/zowie-widget-entry.js';
+  var INSTANCE_ID = '4651b8f2966a466cb55e23fb932b7f3a';
+
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('t') || '';
+  // Demo switches (kept in the URL after the token is removed):
+  //   v=live         -> talk to the published AI agent version (default: STAGING, the POC is not published)
+  //   r=<referral>   -> referral used to start the chat (default: email_handoff when a token is present)
+  var versionType = (params.get('v') || '').toLowerCase() === 'live' ? 'PRODUCTION' : 'STAGING';
+  var referral = params.get('r') || (token ? 'email_handoff' : '');
+
+  // Remove the token from the address bar / history as soon as it is read.
+  if (token) {
+    params.delete('t');
+    var rest = params.toString();
+    history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : ''));
+  }
+
+  function $(id) { return document.getElementById(id); }
+  function step(n, state, detail) {
+    var li = $('s' + n); li.className = state; if (state === 'done') li.querySelector('.dot').textContent = '✓';
+    if (detail) $('s' + n + 'd').textContent = detail;
+  }
+  function banner(kind, text) { var b = $('banner'); b.className = 'banner ' + kind; b.textContent = text; b.hidden = false; }
+
+  // Display-only decode of the token payload. The page does NOT verify the token:
+  // the signature is checked inside the Zowie process; the page just passes it on unchanged.
+  function decodePayload(t) {
+    try {
+      var b64 = t.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      var json = decodeURIComponent(Array.prototype.map.call(atob(b64), function (c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(json);
+    } catch (e) { return null; }
+  }
+
+  var payload = token ? decodePayload(token) : null;
+  if (token) {
+    step(1, 'done', 'token received and removed from the address bar');
+    if (payload) {
+      var exp = payload.exp ? new Date(payload.exp * 1000) : null;
+      $('title').textContent = 'Welcome back' + (payload.fn ? ', ' + payload.fn : '');
+      $('lead').textContent = 'You came here from our e-mail. The chat already knows your case, so you will not have to repeat anything.';
+      $('ctxSummary').textContent = payload.sum || '(no summary)';
+      $('ctxMeta').innerHTML =
+        '<span>Topic</span><b>' + (payload.tp === 'card_block' ? 'Block a card' : (payload.tp || '-')) + '</b>' +
+        (payload.card ? '<span>Card</span><b>ending ' + payload.card + '</b>' : '') +
+        (payload.rsn ? '<span>Reason</span><b>' + payload.rsn.replace('_', ' ') + '</b>' : '') +
+        (exp ? '<span>Link valid until</span><b>' + exp.toLocaleString() + '</b>' : '');
+      $('ctxCard').hidden = false;
+      if (exp && exp < new Date()) banner('warn', 'This link has expired. The chat will open normally and ask how it can help.');
+    } else {
+      banner('warn', 'The link looks damaged. The chat will open normally and ask how it can help.');
+    }
+  } else {
+    step(1, 'active', 'no e-mail link on this visit – regular chat');
+    $('lead').textContent = 'No e-mail link was used. Our assistant will open in the corner of this page.';
+  }
+
+  var extraParams = { entryChannel: token ? 'email' : 'web' };
+  if (token) extraParams.handoffToken = token;   // all extraParams values must be strings
+
+  $('dbg').innerHTML = 'version: <code>' + versionType + '</code> · referral: <code>' + (referral || 'default') + '</code>';
+
+  var s = document.createElement('script');
+  s.type = 'module';
+  s.src = WIDGET_SCRIPT_URL;
+  s.onload = function () {
+    // Custom events sent by the Zowie process with ui.sendEvent(...)
+    ZowieWidget.on('handoffVerified', function (p) {
+      step(3, 'done', 'signed link verified for ' + ((p && p.firstName) || 'customer'));
+    });
+    ZowieWidget.on('cardBlocked', function (p) {
+      step(4, 'done', (p && p.card ? p.card : 'card') + ' · ref ' + (p && p.reference) + ' · replacement by ' + (p && p.replacementEta));
+      banner('ok', 'Your card is blocked. No further payments can be made with it.');
+    });
+
+    ZowieWidget.init(INSTANCE_ID, {
+      showOnLoad: true,
+      resetSession: !!token,            // every click from an e-mail = a fresh conversation
+      versionType: versionType,
+      metadata: { extraParams: extraParams },
+      onLoaded: function () {
+        if (referral) ZowieWidget.startChat(referral); else ZowieWidget.open();
+      },
+      onStartChat: function (conversationId) {
+        step(2, 'done', 'conversation ' + conversationId);
+        window.__zowieConversationId = conversationId;
+      }
+    });
+  };
+  document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>
